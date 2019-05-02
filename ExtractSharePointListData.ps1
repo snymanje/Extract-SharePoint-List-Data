@@ -2,43 +2,51 @@ Add-PSSnapin Microsoft.SharePoint.PowerShell -ErrorAction SilentlyContinue
 Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,$WebURL)
 {
     #Configuration Variables
-    $DatabaseServer = $DBServer$DatabaseName= $DBName
-    function sendmail([string]$Subject, [string]$Body){
-        Send-MailMessage -SmtpServer "YOUR SMTP ADDRESS" -To "YOUR MAIL ADDRRESS" -From "YOUR MAIL ADDRRESS" -Subject $Subject -Body $Body
+    $DatabaseServer = $DBServer
+    $DatabaseName= $DBName
+    function sendmail([string]$Subject, [string]$Body)
+    {
+        Send-MailMessage -SmtpServer "<smtp address>" -To "<To address>" -From "<From Address>" -Subject $Subject -Body $Body
     }
 
     #Get Web, List and Fields
-    $Web= Get-SPWeb $WebURL$List= $Web.Lists[$ListName]
+    $Web= Get-SPWeb $WebURL
+    $List= $Web.Lists[$ListName]
     #Get all required fields from the lists
-    $ListFields = $List.Fields |
-                    Where-Object{ ($_.Hidden -ne $true ) -and
+    $ListFields = $List.Fields | 
+                                Where-Object{ ($_.Hidden -ne $true ) -and
                                    ($_.InternalName -ne "Attachments") -and
                                    ($_.InternalName -ne "ContentType") -and
                                    ($_.ReadOnlyField -ne $true -or $_.InternalName -eq 'ID' -or $_.InternalName -eq 'Modified' -or 
                                     $_.InternalName -eq 'Created' -or $_.InternalName -eq 'Author' -or $_.InternalName -eq 'Editor')
                                 }
 
-    #Get SQL column Definition for SharePoint List FieldFunction Get-ColumnDefinition([Microsoft.SharePoint.SPField]$Field){
-        $ColumnDefinition=""Switch($Field.Type)
+    #Get SQL column Definition for SharePoint List Field
+    Function Get-ColumnDefinition([Microsoft.SharePoint.SPField]$Field){
+        $ColumnDefinition=""
+
+        Switch($Field.Type)
         {
-        "Boolean" { $ColumnDefinition = '['+ $Field.Title +'] [bit] NULL '}
-        "Choice" { $ColumnDefinition = '['+ $Field.Title +'] [nvarchar](MAX) NULL '}
-        "Currency" { $ColumnDefinition = '['+ $Field.Title +'] [decimal](18, 2) NULL '}
-        "DateTime" { $ColumnDefinition = '['+ $Field.Title +'] [datetime] NULL '}
-        "Guid" { $ColumnDefinition = '['+ $Field.Title +'] [uniqueidentifier] NULL '}
-        "Integer" { $ColumnDefinition = '['+ $Field.Title +'] [int] NULL '}
-        "Lookup" { $ColumnDefinition = '['+ $Field.Title +'] [nvarchar] (500) NULL '}
-        "MultiChoice" { $ColumnDefinition = '['+ $Field.Title +'] [nText] (MAX) NULL '}
-        "Note" { $ColumnDefinition = '['+ $Field.Title +'] [nText] NULL '}
-        "Number" { $ColumnDefinition = '['+ $Field.Title +'] [decimal](18, 2) NULL '}
-        "Text" { $ColumnDefinition = '['+ $Field.Title +'] [nVarchar] (MAX) NULL '}
-        "URL" { $ColumnDefinition = '['+ $Field.Title +'] [nvarchar] (500) NULL '}
-        "User" { $ColumnDefinition = '['+ $Field.Title +'] [nvarchar] (255) NULL '}
-        default { $ColumnDefinition = '['+ $Field.Title +'] [nvarchar] (MAX) NULL '}
-    }
-    return $ColumnDefinition
-    }
-    ################ Format Column Value Functions ######################Function Format-UserValue([object] $ValueToFormat){
+            "Boolean" { $ColumnDefinition = '['+ $Field.Title +'] [bit] NULL '}
+            "Choice" { $ColumnDefinition = '['+ $Field.Title +'] [nvarchar](MAX) NULL '}
+            "Currency" { $ColumnDefinition = '['+ $Field.Title +'] [decimal](18, 2) NULL '}
+            "DateTime" { $ColumnDefinition = '['+ $Field.Title +'] [datetime] NULL '}
+            "Guid" { $ColumnDefinition = '['+ $Field.Title +'] [uniqueidentifier] NULL '}
+            "Integer" { $ColumnDefinition = '['+ $Field.Title +'] [int] NULL '}
+            "Lookup" { $ColumnDefinition = '['+ $Field.Title +'] [nvarchar] (500) NULL '}
+            "MultiChoice" { $ColumnDefinition = '['+ $Field.Title +'] [nText] (MAX) NULL '}
+            "Note" { $ColumnDefinition = '['+ $Field.Title +'] [nText] NULL '}
+            "Number" { $ColumnDefinition = '['+ $Field.Title +'] [decimal](18, 2) NULL '}
+            "Text" { $ColumnDefinition = '['+ $Field.Title +'] [nVarchar] (MAX) NULL '}
+            "URL" { $ColumnDefinition = '['+ $Field.Title +'] [nvarchar] (500) NULL '}
+            "User" { $ColumnDefinition = '['+ $Field.Title +'] [nvarchar] (255) NULL '}
+            default { $ColumnDefinition = '['+ $Field.Title +'] [nvarchar] (MAX) NULL '}
+        }
+        return $ColumnDefinition
+        }
+    ################ Format Column Value Functions ######################
+    Function Format-UserValue([object] $ValueToFormat)
+    {
         if([String]::IsNullOrEmpty($ValueToFormat) -eq $false) {
             $Users = $ValueToFormat.Substring($ValueToFormat.IndexOf("#") + 1)
             return "'" + $Users + "'"
@@ -48,27 +56,36 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
     }
     Function Format-LookupValue([Microsoft.SharePoint.SPFieldLookupValueCollection] $ValueToFormat){
         $LookupValue = [string]::join("; ",( $ValueToFormat | Select-Object -expandproperty LookupValue))
-        $LookupValue = $LookupValue -replace "'", "''"return "'" + $LookupValue + "'"
+        $LookupValue = $LookupValue -replace "'", "''"
+        return "'" + $LookupValue + "'"
     }
     Function Format-DateValue([string]$ValueToFormat){
-        [datetime] $dt = $ValueToFormatreturn "'" + $dt + "'"
+        [datetime] $dt = $ValueToFormat
+        return "'" + $dt + "'"
     }
     Function Format-CurrencyValue([string]$ValueToFormat){
-        [decimal] $dc = $ValueToFormatreturn "'" + $dc + "'"
+        [decimal] $dc = $ValueToFormat
+        return "'" + $dc + "'"
     }
     Function Format-MMSValue([Object]$ValueToFormat){
-    return "'" + $ValueToFormat.Label + "'"
+        return "'" + $ValueToFormat.Label + "'"
     }
     Function Format-BooleanValue([string]$ValueToFormat){
         if($ValueToFormat -eq "Yes") {return 1} else { return 0}
     }
-    Function Format-StringValue([object]$ValueToFormat){
-    [string]$result = $ValueToFormat -replace "'", "''"return "'" + $result + "'"
+    Function Format-StringValue([object]$ValueToFormat)
+    {
+        [string]$result = $ValueToFormat -replace "'", "''"
+        return "'" + $result + "'"
     }
-    #Function to get the value of given field of the List itemFunction Get-ColumnValue([Microsoft.SharePoint.SPListItem] $ListItem, [Microsoft.SharePoint.SPField]$Field){
+    #Function to get the value of given field of the List item
+    Function Get-ColumnValue([Microsoft.SharePoint.SPListItem] $ListItem, [Microsoft.SharePoint.SPField]$Field){
         $FieldValue= $ListItem[$Field.Title]
-        #Check for NULLif([string]::IsNullOrEmpty($FieldValue)) { return 'NULL'}
-        $FormattedValue = ""Switch($Field.Type)
+        #Check for NULL
+        if([string]::IsNullOrEmpty($FieldValue)) { return 'NULL'}
+        $FormattedValue = ""
+
+        Switch($Field.Type)
         {
         "Boolean"  {$FormattedValue =  Format-BooleanValue($FieldValue)}
         "Choice"  {$FormattedValue = Format-StringValue($FieldValue)}
@@ -81,19 +98,26 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
         "Number"    {$FormattedValue = $FieldValue}"Text"  {$FormattedValue = Format-StringValue($Field.GetFieldValueAsText($ListItem[$Field.Title]))}
         "URL"  {$FormattedValue =  Format-StringValue($FieldValue)}
         "User"  {$FormattedValue = Format-UserValue($FieldValue) }
-        #Check MMS Field"Invalid" { if($Field.TypeDisplayName -eq "Managed Metadata") { $FormattedValue = Format-MMSValue($FieldValue) } else { $FormattedValue =Format-StringValue($FieldValue)}  }
+        #Check MMS Field
+        "Invalid" { if($Field.TypeDisplayName -eq "Managed Metadata") { $FormattedValue = Format-MMSValue($FieldValue) } else { $FormattedValue =Format-StringValue($FieldValue)}  }
         default  {$FormattedValue = Format-StringValue($FieldValue)}
     }
     Return $FormattedValue
     }
 
-    #Create SQL Server table for SharePoint ListFunction CreateMainTable([Microsoft.SharePoint.SPList]$List){
+    #Create SQL Server table for SharePoint List
+    Function CreateMainTable([Microsoft.SharePoint.SPList]$List)
+    {
         #Check if the table exists already
-        $TableCheckQuery = "Select OBJECT_ID('[dbo].[$($MainTable)]','U')"$Result = Invoke-Sqlcmd -ServerInstance $DatabaseServer -Database $DatabaseName -Query $TableCheckQuery -querytimeout 300
+        $TableCheckQuery = "Select OBJECT_ID('[dbo].[$($MainTable)]','U')"
+        $Result = Invoke-Sqlcmd -ServerInstance $DatabaseServer -Database $DatabaseName -Query $TableCheckQuery -querytimeout 300
 
         if([String]::IsNullOrEmpty($Result.Column1.ToString()))
         {
-            Write-Host "Creating table"#Create the table$Query="CREATE TABLE [dbo].[$($MainTable)]("foreach ($Field in $ListFields)
+            Write-Host "Creating table"
+            #Create the table
+            $Query="CREATE TABLE [dbo].[$($MainTable)]("
+            foreach ($Field in $ListFields)
             {
                 $Query += Get-ColumnDefinition($Field)
                 $Query += ","
@@ -104,13 +128,18 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
             Invoke-Sqlcmd -ServerInstance $DatabaseServer -Database $DatabaseName -Query $Query -querytimeout 300
         }
     }
-    Function CreateStagingTable([Microsoft.SharePoint.SPList]$List){
+    Function CreateStagingTable([Microsoft.SharePoint.SPList]$List)
+    {
         #Check if the table exists already
-        $TableCheckQuery = "Select OBJECT_ID('[dbo].[$($StagingTable)]','U')"$Result = Invoke-Sqlcmd -ServerInstance $DatabaseServer -Database $DatabaseName -Query $TableCheckQuery -querytimeout 300
+        $TableCheckQuery = "Select OBJECT_ID('[dbo].[$($StagingTable)]','U')"
+        $Result = Invoke-Sqlcmd -ServerInstance $DatabaseServer -Database $DatabaseName -Query $TableCheckQuery -querytimeout 300
 
         if([String]::IsNullOrEmpty($Result.Column1.ToString()))
         {
-            Write-Host "Creating table"#Create the table$Query="CREATE TABLE [dbo].[$($StagingTable)]("foreach ($Field in $ListFields)
+            Write-Host "Creating table"
+            #Create the table
+            $Query="CREATE TABLE [dbo].[$($StagingTable)]("
+            foreach ($Field in $ListFields)
             {
                 $Query += Get-ColumnDefinition($Field)
                 $Query += ","
@@ -120,12 +149,18 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
             #Run the Query
             Invoke-Sqlcmd -ServerInstance $DatabaseServer -Database $DatabaseName -Query $Query -querytimeout 300
         }
+      
     }
 
-    #Insert Data from SharePoint List to SQL TableFunction InsertData([Microsoft.SharePoint.SPList]$List){
+    #Insert Data from SharePoint List to SQL Table
+    Function InsertData([Microsoft.SharePoint.SPList]$List)
+    {
         #clear Staging table
         Invoke-Sqlcmd -ServerInstance $DatabaseServer -Database $DatabaseName -Query "Delete from [dbo].[$($StagingTable)]" -querytimeout 300
-        $endDate = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"#Get the last timestamp when data was collected from the SharePoint List$MaxDate = Invoke-Sqlcmd -ServerInstance $DatabaseServer -Database $DatabaseName -Query "select max(Modified) FROM [dbo].[$($MainTable)]"if([String]::IsNullOrEmpty($MaxDate.Column1.ToString()))
+        $endDate = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+        #Get the last timestamp when data was collected from the SharePoint List
+        $MaxDate = Invoke-Sqlcmd -ServerInstance $DatabaseServer -Database $DatabaseName -Query "select max(Modified) FROM [dbo].[$($MainTable)]"
+        if([String]::IsNullOrEmpty($MaxDate.Column1.ToString()))
         {
             $MaxDate = "2010-10-01T00:00:00Z"
         }
@@ -134,7 +169,8 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
             $MaxDate = $MaxDate.Column1.ToString("yyyy-MM-ddTHH:mm:ssZ")
         }
         #Run caml query to select the items from SharePoint since the last run
-        Write-host "Executing caml"$spQuery = New-Object Microsoft.SharePoint.SPQuery
+        Write-host "Executing caml"
+        $spQuery = New-Object Microsoft.SharePoint.SPQuery
         $spQuery.ViewAttributes = "Scope='Recursive'";
         $caml =
         '<Where>
@@ -159,7 +195,7 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
 
         $ListItems=$List.GetItems($spQuery)
 
-        ##Progress bar counter
+        #Progress bar counter
         $Counter=0
         $ListItemCount=$ListItems.Count
 
@@ -175,7 +211,8 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
             $vals = new-object System.Text.StringBuilder
             [void]$vals.Append("VALUES (")
 
-            $loop = 0foreach ($Field in $ListFields)
+            $loop = 0
+            foreach ($Field in $ListFields)
             {
                 if($loop -gt 0)
                 {
@@ -212,7 +249,8 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
          }
     }
 
-    #Merge Data from taging tableFunction MergeData(){
+    #Merge Data from taging table
+    Function MergeData(){
         $data = Invoke-Sqlcmd -ServerInstance $DatabaseServer -Database $DatabaseName -Query "Select * from dbo.[$($StagingTable)] nolock" -querytimeout 300
         $TableColumns = $data | Get-Member | Where-Object {$_.membertype -eq 'property'} | Select-Object name
 
@@ -222,7 +260,8 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
             [void]$sql.Append("ON (Main.[ID] = Staging.[ID]) ")
             [void]$sql.Append("WHEN MATCHED THEN UPDATE SET ")
 
-            $loop = 0foreach ($column in $TableColumns.name)
+            $loop = 0
+            foreach ($column in $TableColumns.name)
             {
                 if($loop -gt 0)
                 {
@@ -234,7 +273,8 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
 
         [void]$sql.Append(" WHEN NOT MATCHED THEN ")
         [void]$sql.Append("INSERT( ")
-            $loop = 0foreach ($column in $TableColumns.name)
+            $loop = 0
+            foreach ($column in $TableColumns.name)
             {
                 if($loop -gt 0)
                 {
@@ -245,7 +285,8 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
             }
         [void]$sql.Append(") ")
         [void]$sql.Append(" VALUES( ")
-        $loop = 0foreach ($column in $TableColumns.name)
+        $loop = 0
+        foreach ($column in $TableColumns.name)
             {
                 if($loop -gt 0)
                 {
@@ -277,8 +318,7 @@ Function ExtractList2Table($ListName,$DBServer,$DBName,$MainTable,$StagingTable,
         CreateMainTable $List
         CreateStagingTable $List
         InsertData $List
-        
-}
+}       
 
 #Call the function to Create SQL Server Table from SharePoint List
-ExtractList2Table -ListName "ListName" -DBServer "DB Server Name" -DBName "Reporting DB Name" -MainTable "Table Name" -StagingTable "Staging Table" -WebURL "http://yourweb.domain...."
+ExtractList2Table -ListName "<ListName>" -DBServer "<DB Server>" -DBName "<DB Name>" -MainTable "<Main Table>" -StagingTable "<Staging Table>" -WebURL "<SP Web Url>"
